@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useId, useMemo } from 'react';
-import { motion, AnimatePresence, useDragControls, useAnimation } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls, useAnimation, useMotionValue, useVelocity, useTransform, useSpring } from 'framer-motion';
 
 // -----------------------------------------------------------------------------
 // TIER 2: DESIGN SYSTEM (THEME)
@@ -340,6 +340,7 @@ interface GlassBubbleProps {
   highlight?: number;
   dropShadow?: number;
   volumeShadow?: number;
+  edgeGlow?: number; // New: Soft subtle edge glow
   debug?: boolean;
 }
 
@@ -352,6 +353,7 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
   highlight = 0.5,
   dropShadow = 0.5,
   volumeShadow = 0.5,
+  edgeGlow = 0.5, // Default glow
   debug = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -402,10 +404,12 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
     
     // PARENT: Handles Shape Clipping
     overflow: 'hidden',
-    // PARENT: Handles Drop Shadow - Realistic diffused look
+    // PARENT: Handles Drop Shadow + Edge Glow
     boxShadow: `
       0 50px 100px -20px rgba(0,0,0,${dropShadow * 0.25}),
-      0 30px 60px -30px rgba(0,0,0,${dropShadow * 0.3})
+      0 30px 60px -30px rgba(0,0,0,${dropShadow * 0.3}),
+      inset 0 0 ${edgeGlow * 20}px 0 rgba(255,255,255,${edgeGlow * 0.2}),
+      0 0 ${edgeGlow * 40}px ${edgeGlow * 2}px rgba(255,255,255,${edgeGlow * 0.15})
     `,
     zIndex: 10,
     transition: 'all 0.2s ease-out'
@@ -491,66 +495,76 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
 // -----------------------------------------------------------------------------
 
 const LiquidWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Motion Values for physics
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const scaleX = useMotionValue(1);
+  const scaleY = useMotionValue(1);
+  
+  // Velocity hooks for dynamic drag interactions
+  const xVelocity = useVelocity(x);
+  const yVelocity = useVelocity(y);
+
+  // Reactive tilt based on drag velocity (Juice)
+  const rotateX = useTransform(yVelocity, [-1000, 1000], [5, -5]);
+  const rotateY = useTransform(xVelocity, [-1000, 1000], [-5, 5]);
+  const rotateXSmooth = useSpring(rotateX, { stiffness: 400, damping: 30 });
+  const rotateYSmooth = useSpring(rotateY, { stiffness: 400, damping: 30 });
+
   const controls = useAnimation();
 
-  // ALGORITHM: Fluid Physics Sequence (Divide & Conquer)
-  // Decomposed into 3 discrete phases: Anticipation (Squash), Reaction (Stretch), Settlement (Spring)
-  const triggerPhysics = async () => {
-    // Phase 1: Squash (Anticipation/Impact)
-    // Scale X increases (flat), Scale Y decreases
-    await controls.start({
-      scaleX: 1.15,
-      scaleY: 0.85,
-      transition: { duration: 0.15, ease: "easeOut" }
-    });
+  // ALGORITHM: Dynamic Physics on Drag End
+  const handleDragEnd = async () => {
+    // 1. Calculate impact intensity based on release velocity
+    const xv = xVelocity.get();
+    const yv = yVelocity.get();
+    const velocity = Math.sqrt(xv * xv + yv * yv);
     
-    // Phase 2: Stretch (Reaction/Rebound)
-    // Scale X decreases (thin), Scale Y increases
-    await controls.start({
-      scaleX: 0.95,
-      scaleY: 1.05,
-      transition: { duration: 0.15, ease: "easeInOut" }
-    });
-
-    // Phase 3: Settle (Fluid Rest)
-    // Return to equilibrium with spring physics
-    await controls.start({
-      scaleX: 1,
-      scaleY: 1,
-      transition: { type: "spring", stiffness: 400, damping: 12, mass: 1 }
-    });
+    // Impact factor: Map 0-2500px/s to 0-0.25 deformation
+    const impact = Math.min(velocity * 0.0001, 0.25);
+    
+    if (impact > 0.01) {
+      // 2. Trigger wobbling sequence
+      await controls.start({
+        scaleX: [1, 1 + impact, 1 - impact/2, 1],
+        scaleY: [1, 1 - impact, 1 + impact/2, 1],
+        transition: { 
+          times: [0, 0.2, 0.5, 1],
+          duration: 0.8, 
+          type: "spring", stiffness: 300, damping: 12 
+        }
+      });
+    }
   };
 
   return (
     <motion.div
-      // Dragging Logic
+      // Bind motion values
+      style={{ 
+        x, y, 
+        scaleX: controls.scaleX || scaleX, 
+        scaleY: controls.scaleY || scaleY,
+        rotateX: rotateXSmooth,
+        rotateY: rotateYSmooth,
+        cursor: 'grab',
+        touchAction: 'none',
+        width: 'clamp(300px, 50vw, 600px)', 
+        height: 'clamp(200px, 30vw, 360px)', 
+        transformOrigin: 'center center',
+        zIndex: 10,
+      }}
+      
+      // Drag Configuration
       drag
-      dragMomentum={true}
       dragElastic={0.1}
+      dragConstraints={{ left: -300, right: 300, top: -200, bottom: 200 }}
       
-      // Animation Logic
-      initial={{ x: '-50%', y: '-50%' }}
-      animate={controls}
-      
-      // Triggers
-      onTap={triggerPhysics}
-      onDragEnd={triggerPhysics}
+      // Physics Triggers
+      onDragEnd={handleDragEnd}
       
       // Interaction Feedback
       whileTap={{ cursor: 'grabbing', scale: 0.98 }}
       whileHover={{ scale: 1.02 }}
-      
-      style={{
-        position: 'absolute', 
-        top: '50%', 
-        left: '50%',
-        width: 'clamp(300px, 50vw, 600px)', 
-        height: 'clamp(200px, 30vw, 360px)', 
-        zIndex: 10, 
-        cursor: 'grab',
-        touchAction: 'none', // Crucial for mobile support
-        transformOrigin: 'center center'
-      }}
     >
       {children}
     </motion.div>
@@ -570,6 +584,7 @@ interface GlassState {
   radius: number;
   dropShadow: number;
   volumeShadow: number;
+  edgeGlow: number; // New State
   debug: 'off' | 'on';
 }
 
@@ -618,18 +633,21 @@ export const MetaGlassApp = () => {
     radius: 80, 
     dropShadow: 0.6,
     volumeShadow: 0.5,
+    edgeGlow: 0.6, // Default glow
     debug: 'off',
   });
   const [windows, setWindows] = useState([{ id: 'controls', isOpen: true }]);
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ 
+      width: '100vw', height: '100vh', 
+      position: 'relative', overflow: 'hidden', 
+      fontFamily: 'Inter, sans-serif',
+      display: 'flex', alignItems: 'center', justifyContent: 'center'
+    }}>
       <StudioBackground />
       
-      {/* 
-         WRAPPER: LiquidWrapper
-         Handles the "Jelly" physics sequence (Squash -> Stretch -> Rest)
-      */}
+      {/* LiquidWrapper now manages its own centering logic via Flexbox parent + x/y offsets */}
       <LiquidWrapper>
          <GlassBubble {...glass} debug={glass.debug === 'on'} />
       </LiquidWrapper>
@@ -645,6 +663,7 @@ export const MetaGlassApp = () => {
               <div style={{ height: 1, background: 'rgba(0,0,0,0.1)' }} />
               
               <Slider label="Shadow (Drop)" value={glass.dropShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, dropShadow: v }))} />
+              <Slider label="Edge Glow" value={glass.edgeGlow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, edgeGlow: v }))} />
               <Slider label="Volume (Inner)" value={glass.volumeShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, volumeShadow: v }))} />
               <Slider label="Bezel Depth" value={glass.bezel} min={0} max={100} onChange={v => setGlass(p => ({ ...p, bezel: v }))} />
               <Slider label="Corner Radius" value={glass.radius} min={0} max={120} onChange={v => setGlass(p => ({ ...p, radius: v }))} />
