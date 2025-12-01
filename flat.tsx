@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useId, useMemo } from 'react';
-import { motion, AnimatePresence, useDragControls, useAnimation, useMotionValue, useVelocity, useTransform, useSpring } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls, useAnimation } from 'framer-motion';
 
 // -----------------------------------------------------------------------------
 // TIER 2: DESIGN SYSTEM (THEME)
@@ -188,6 +188,23 @@ const StudioBackground: React.FC = () => {
   );
 };
 
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '16px', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+    <div style={{ 
+      textTransform: 'uppercase', 
+      fontSize: '11px', 
+      fontWeight: 600, 
+      color: Theme.Color.Base.Content[3],
+      letterSpacing: '0.05em'
+    }}>
+      {title}
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {children}
+    </div>
+  </div>
+);
+
 const Slider: React.FC<{ label: string; value: number; min: number; max: number; onChange: (v: number) => void }> = ({ label, value, min, max, onChange }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: Theme.Space.XS }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -206,7 +223,7 @@ const Slider: React.FC<{ label: string; value: number; min: number; max: number;
         }}
         className="range-input"
       />
-      <style>{`.range-input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #000; border-radius: 50%; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }`}</style>
+      <style>{`.range-input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #000; border-radius: 50%; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.1s; } .range-input::-webkit-slider-thumb:hover { transform: scale(1.1); }`}</style>
     </div>
   </div>
 );
@@ -338,9 +355,9 @@ interface GlassBubbleProps {
   chromaticDelta?: number;
   frost?: number;
   highlight?: number;
+  ambient?: number; // New Ambient Glow Prop
   dropShadow?: number;
   volumeShadow?: number;
-  edgeGlow?: number; // New: Soft subtle edge glow
   debug?: boolean;
 }
 
@@ -351,9 +368,9 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
   chromaticDelta = 0,
   frost = 0,
   highlight = 0.5,
+  ambient = 0.5, // Default Ambient
   dropShadow = 0.5,
   volumeShadow = 0.5,
-  edgeGlow = 0.5, // Default glow
   debug = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -404,12 +421,10 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
     
     // PARENT: Handles Shape Clipping
     overflow: 'hidden',
-    // PARENT: Handles Drop Shadow + Edge Glow
+    // PARENT: Handles Drop Shadow - Realistic diffused look
     boxShadow: `
       0 50px 100px -20px rgba(0,0,0,${dropShadow * 0.25}),
-      0 30px 60px -30px rgba(0,0,0,${dropShadow * 0.3}),
-      inset 0 0 ${edgeGlow * 20}px 0 rgba(255,255,255,${edgeGlow * 0.2}),
-      0 0 ${edgeGlow * 40}px ${edgeGlow * 2}px rgba(255,255,255,${edgeGlow * 0.15})
+      0 30px 60px -30px rgba(0,0,0,${dropShadow * 0.3})
     `,
     zIndex: 10,
     transition: 'all 0.2s ease-out'
@@ -442,7 +457,7 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
         />
       )}
 
-      {/* CHILD 1: VOLUME (Dark Inner Edges) */}
+      {/* CHILD 1: VOLUME (Dark Inner Edges) - zIndex 1 */}
       <div style={{
         ...layerInset,
         boxShadow: `
@@ -453,7 +468,21 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
         zIndex: 1,
       }} />
 
-      {/* CHILD 2: SPECULAR (Rim Light & Gloss) */}
+      {/* CHILD 2: AMBIENT GLOW (New Premium Layer) - zIndex 2 */}
+      {/* Sits on top of volume shadow to add milky depth and edge luminescence */}
+      <div style={{
+        ...layerInset,
+        boxShadow: `
+          inset 0 0 ${bezel}px rgba(255,255,255,${ambient * 0.3}),
+          inset 0 0 ${Math.max(2, bezel / 8)}px rgba(255,255,255,${ambient * 0.8})
+        `,
+        // Screen blend mode ensures it only lightens the underlying dark volume shadow, 
+        // creating a realistic subsurface scattering effect.
+        mixBlendMode: 'screen',
+        zIndex: 2,
+      }} />
+
+      {/* CHILD 3: SPECULAR (Rim Light & Gloss) - zIndex 3 */}
       <div style={{
         ...layerInset,
         boxShadow: `
@@ -467,12 +496,12 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
         zIndex: 3,
       }} />
       
-      {/* CHILD 3: FROST OVERLAY (Subtle Noise/Grain could be added here if needed) */}
+      {/* CHILD 4: FROST OVERLAY - zIndex 4 */}
       {frost > 0 && (
          <div style={{
             ...layerInset,
             backgroundColor: `rgba(255,255,255, ${Math.min(0.2, frost * 0.02)})`,
-            zIndex: 2,
+            zIndex: 4,
          }} />
       )}
 
@@ -495,76 +524,46 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
 // -----------------------------------------------------------------------------
 
 const LiquidWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Motion Values for physics
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const scaleX = useMotionValue(1);
-  const scaleY = useMotionValue(1);
-  
-  // Velocity hooks for dynamic drag interactions
-  const xVelocity = useVelocity(x);
-  const yVelocity = useVelocity(y);
-
-  // Reactive tilt based on drag velocity (Juice)
-  const rotateX = useTransform(yVelocity, [-1000, 1000], [5, -5]);
-  const rotateY = useTransform(xVelocity, [-1000, 1000], [-5, 5]);
-  const rotateXSmooth = useSpring(rotateX, { stiffness: 400, damping: 30 });
-  const rotateYSmooth = useSpring(rotateY, { stiffness: 400, damping: 30 });
-
   const controls = useAnimation();
 
-  // ALGORITHM: Dynamic Physics on Drag End
-  const handleDragEnd = async () => {
-    // 1. Calculate impact intensity based on release velocity
-    const xv = xVelocity.get();
-    const yv = yVelocity.get();
-    const velocity = Math.sqrt(xv * xv + yv * yv);
-    
-    // Impact factor: Map 0-2500px/s to 0-0.25 deformation
-    const impact = Math.min(velocity * 0.0001, 0.25);
-    
-    if (impact > 0.01) {
-      // 2. Trigger wobbling sequence
-      await controls.start({
-        scaleX: [1, 1 + impact, 1 - impact/2, 1],
-        scaleY: [1, 1 - impact, 1 + impact/2, 1],
-        transition: { 
-          times: [0, 0.2, 0.5, 1],
-          duration: 0.8, 
-          type: "spring", stiffness: 300, damping: 12 
-        }
-      });
-    }
+  // ALGORITHM: Fluid Physics Sequence (Divide & Conquer)
+  const triggerPhysics = async () => {
+    // Phase 1: Squash
+    await controls.start({
+      scaleX: 1.15, scaleY: 0.85,
+      transition: { duration: 0.15, ease: "easeOut" }
+    });
+    // Phase 2: Stretch
+    await controls.start({
+      scaleX: 0.95, scaleY: 1.05,
+      transition: { duration: 0.15, ease: "easeInOut" }
+    });
+    // Phase 3: Settle
+    await controls.start({
+      scaleX: 1, scaleY: 1,
+      transition: { type: "spring", stiffness: 400, damping: 12, mass: 1 }
+    });
   };
 
   return (
     <motion.div
-      // Bind motion values
-      style={{ 
-        x, y, 
-        scaleX: controls.scaleX || scaleX, 
-        scaleY: controls.scaleY || scaleY,
-        rotateX: rotateXSmooth,
-        rotateY: rotateYSmooth,
-        cursor: 'grab',
-        touchAction: 'none',
-        width: 'clamp(300px, 50vw, 600px)', 
-        height: 'clamp(200px, 30vw, 360px)', 
-        transformOrigin: 'center center',
-        zIndex: 10,
-      }}
-      
-      // Drag Configuration
       drag
+      dragMomentum={true}
       dragElastic={0.1}
-      dragConstraints={{ left: -300, right: 300, top: -200, bottom: 200 }}
-      
-      // Physics Triggers
-      onDragEnd={handleDragEnd}
-      
-      // Interaction Feedback
+      initial={{ x: '-50%', y: '-50%' }}
+      animate={controls}
+      onTap={triggerPhysics}
+      onDragEnd={triggerPhysics}
       whileTap={{ cursor: 'grabbing', scale: 0.98 }}
       whileHover={{ scale: 1.02 }}
+      style={{
+        position: 'absolute', top: '50%', left: '50%',
+        width: 'clamp(300px, 50vw, 600px)', 
+        height: 'clamp(200px, 30vw, 360px)', 
+        zIndex: 10, cursor: 'grab',
+        touchAction: 'none',
+        transformOrigin: 'center center'
+      }}
     >
       {children}
     </motion.div>
@@ -581,10 +580,10 @@ interface GlassState {
   chromaticDelta: number;
   frost: number;
   highlight: number;
+  ambient: number; // NEW
   radius: number;
   dropShadow: number;
   volumeShadow: number;
-  edgeGlow: number; // New State
   debug: 'off' | 'on';
 }
 
@@ -593,30 +592,67 @@ const DraggableWindow: React.FC<{
   width?: string; children: React.ReactNode;
 }> = ({ id, title, isOpen, onClose, width = '300px', children }) => {
   const dragControls = useDragControls();
+  
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          drag dragControls={dragControls} dragListener={false} dragMomentum={false}
+          drag
+          dragControls={dragControls}
+          dragListener={false} // Only listen on the handle
+          dragMomentum={false} // Prevent drifting after release
+          dragElastic={0} // Remove elastic band effect for tighter control
+          
           initial={{ opacity: 0, y: 20, x: '-50%', left: '50%', top: '100px' }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95 }}
+          exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+          
           style={{
-            position: 'absolute', width, background: 'rgba(255,255,255,0.85)',
-            backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-            borderRadius: '20px', 
-            boxShadow: '0 0 0 1px rgba(0,0,0,0.05), 0 24px 60px -12px rgba(0,0,0,0.15)',
-            zIndex: 100, overflow: 'hidden'
+            position: 'absolute', 
+            width, 
+            background: 'rgba(255,255,255,0.9)',
+            backdropFilter: 'blur(30px) saturate(150%)', 
+            WebkitBackdropFilter: 'blur(30px) saturate(150%)',
+            borderRadius: '16px', 
+            boxShadow: '0 0 0 1px rgba(0,0,0,0.08), 0 20px 50px -12px rgba(0,0,0,0.2)',
+            zIndex: 100, 
+            overflow: 'hidden',
           }}
         >
-          <div onPointerDown={(e) => dragControls.start(e)} style={{
-            height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '0 16px', borderBottom: '1px solid rgba(0,0,0,0.05)', cursor: 'grab'
-          }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#333' }}>{title}</span>
-            <button onClick={onClose} style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#FF5F57', border: 'none', cursor: 'pointer' }} />
+          {/* Header Handle */}
+          <div 
+            onPointerDown={(e) => dragControls.start(e)}
+            style={{
+              height: '40px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              padding: '0 12px 0 16px', 
+              borderBottom: '1px solid rgba(0,0,0,0.06)', 
+              cursor: 'grab',
+              background: 'linear-gradient(to bottom, rgba(255,255,255,0.5), rgba(255,255,255,0))',
+              touchAction: 'none', // Critical for touch drag
+            }}
+          >
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#333', letterSpacing: '-0.01em', opacity: 0.8 }}>{title}</span>
+            <button 
+              onClick={onClose} 
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{ 
+                width: '20px', height: '20px', borderRadius: '50%', 
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#AEAEB2'
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
           </div>
-          <div style={{ padding: '24px' }}>{children}</div>
+          
+          {/* Content */}
+          <div style={{ padding: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
+            {children}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -630,55 +666,73 @@ export const MetaGlassApp = () => {
     chromaticDelta: 8, 
     frost: 0, 
     highlight: 0.6, 
+    ambient: 0.4, // Initial ambient
     radius: 80, 
     dropShadow: 0.6,
     volumeShadow: 0.5,
-    edgeGlow: 0.6, // Default glow
     debug: 'off',
   });
   const [windows, setWindows] = useState([{ id: 'controls', isOpen: true }]);
 
   return (
-    <div style={{ 
-      width: '100vw', height: '100vh', 
-      position: 'relative', overflow: 'hidden', 
-      fontFamily: 'Inter, sans-serif',
-      display: 'flex', alignItems: 'center', justifyContent: 'center'
-    }}>
+    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
       <StudioBackground />
       
-      {/* LiquidWrapper now manages its own centering logic via Flexbox parent + x/y offsets */}
+      {/* 
+         WRAPPER: LiquidWrapper
+         Handles the "Jelly" physics sequence (Squash -> Stretch -> Rest)
+      */}
       <LiquidWrapper>
          <GlassBubble {...glass} debug={glass.debug === 'on'} />
       </LiquidWrapper>
 
       {windows.map(w => (
-        <DraggableWindow key={w.id} id={w.id} title="Liquid Physics" isOpen={w.isOpen} onClose={() => setWindows([])}>
-           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <Slider label="Refraction" value={glass.intensity} min={0} max={100} onChange={v => setGlass(p => ({ ...p, intensity: v }))} />
-              <Slider label="Dispersion (RGB)" value={glass.chromaticDelta} min={0} max={30} onChange={v => setGlass(p => ({ ...p, chromaticDelta: v }))} />
-              <Slider label="Frost (Blur)" value={glass.frost} min={0} max={20} onChange={v => setGlass(p => ({ ...p, frost: v }))} />
-              <Slider label="Specular Highlight" value={glass.highlight} min={0} max={1} onChange={v => setGlass(p => ({ ...p, highlight: v }))} />
+        <DraggableWindow key={w.id} id={w.id} title="Glass Properties" isOpen={w.isOpen} onClose={() => setWindows([])}>
+           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
-              <div style={{ height: 1, background: 'rgba(0,0,0,0.1)' }} />
+              <Section title="Material Physics">
+                <Slider label="Refraction" value={glass.intensity} min={0} max={100} onChange={v => setGlass(p => ({ ...p, intensity: v }))} />
+                <Slider label="Dispersion (RGB)" value={glass.chromaticDelta} min={0} max={30} onChange={v => setGlass(p => ({ ...p, chromaticDelta: v }))} />
+                <Slider label="Frost (Density)" value={glass.frost} min={0} max={20} onChange={v => setGlass(p => ({ ...p, frost: v }))} />
+              </Section>
               
-              <Slider label="Shadow (Drop)" value={glass.dropShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, dropShadow: v }))} />
-              <Slider label="Edge Glow" value={glass.edgeGlow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, edgeGlow: v }))} />
-              <Slider label="Volume (Inner)" value={glass.volumeShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, volumeShadow: v }))} />
-              <Slider label="Bezel Depth" value={glass.bezel} min={0} max={100} onChange={v => setGlass(p => ({ ...p, bezel: v }))} />
-              <Slider label="Corner Radius" value={glass.radius} min={0} max={120} onChange={v => setGlass(p => ({ ...p, radius: v }))} />
+              <Section title="Light & Surface">
+                <Slider label="Specular (Rim)" value={glass.highlight} min={0} max={1} onChange={v => setGlass(p => ({ ...p, highlight: v }))} />
+                <Slider label="Ambient Glow" value={glass.ambient} min={0} max={1} onChange={v => setGlass(p => ({ ...p, ambient: v }))} />
+                <Slider label="Bezel Depth" value={glass.bezel} min={0} max={100} onChange={v => setGlass(p => ({ ...p, bezel: v }))} />
+              </Section>
+
+              <Section title="Shadows">
+                <Slider label="Drop Shadow" value={glass.dropShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, dropShadow: v }))} />
+                <Slider label="Volume (Inner)" value={glass.volumeShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, volumeShadow: v }))} />
+              </Section>
+
+              <Section title="Geometry">
+                <Slider label="Corner Radius" value={glass.radius} min={0} max={120} onChange={v => setGlass(p => ({ ...p, radius: v }))} />
+              </Section>
+
            </div>
         </DraggableWindow>
       ))}
       
       <div style={{ position: 'absolute', bottom: 40, width: '100%', textAlign: 'center', pointerEvents: 'none' }}>
-        <button onClick={() => setWindows([{ id: 'controls', isOpen: true }])} style={{ 
-          pointerEvents: 'auto', background: '#fff', border: 'none', padding: '12px 24px', 
-          borderRadius: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontWeight: 600, cursor: 'pointer',
-          color: '#333', fontSize: '13px'
-        }}>
-          Open Controls
-        </button>
+        <AnimatePresence>
+          {windows.length === 0 && (
+            <motion.button 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              onClick={() => setWindows([{ id: 'controls', isOpen: true }])} 
+              style={{ 
+                pointerEvents: 'auto', background: '#fff', border: 'none', padding: '12px 24px', 
+                borderRadius: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontWeight: 600, cursor: 'pointer',
+                color: '#333', fontSize: '13px'
+              }}
+            >
+              Open Controls
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
