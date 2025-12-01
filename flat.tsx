@@ -458,31 +458,54 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
       )}
 
       {/* CHILD 1: VOLUME (Dark Inner Edges) - zIndex 1 */}
+      {/* Adds mass and density to the object by darkening the thickest parts */}
       <div style={{
         ...layerInset,
         boxShadow: `
-          inset 0 0 ${bezel}px rgba(0,0,0,${volumeShadow * 0.25}),
-          inset 0 0 10px rgba(0,0,0,${volumeShadow * 0.25})
+          inset 0 0 ${bezel}px rgba(0,0,0,${volumeShadow * 0.4}),
+          inset 0 0 20px rgba(0,0,0,${volumeShadow * 0.3})
         `,
         mixBlendMode: 'multiply',
         zIndex: 1,
       }} />
 
-      {/* CHILD 2: AMBIENT GLOW (New Premium Layer) - zIndex 2 */}
-      {/* Sits on top of volume shadow to add milky depth and edge luminescence */}
+      {/* CHILD 2: INNER GLOW (Warm Center/Bottom) - zIndex 2 */}
+      {/* NEW: Simulates light scattering inside the volume (Subsurface Scattering) */}
+      <div style={{
+         ...layerInset,
+         background: `
+            radial-gradient(circle at 50% 120%, rgba(255,255,255,${ambient * 0.35}) 0%, transparent 60%),
+            radial-gradient(circle at 50% -20%, rgba(255,255,255,${ambient * 0.1}) 0%, transparent 50%)
+         `,
+         mixBlendMode: 'screen', // Adds light without washing out shadows
+         zIndex: 2,
+      }} />
+
+      {/* CHILD 3: EDGE BLUR (Milky Caustic Edge) - zIndex 3 */}
+      {/* NEW: A heavily blurred inset border creating a soft, milky transition at the edge */}
+      <div style={{
+         ...layerInset,
+         boxShadow: `inset 0 0 0 ${Math.max(1, bezel/6)}px rgba(255,255,255,${highlight * 0.3})`,
+         filter: `blur(${Math.max(2, bezel/3)}px)`,
+         zIndex: 3,
+         mixBlendMode: 'overlay',
+         opacity: 0.8,
+      }} />
+
+      {/* CHILD 4: AMBIENT GLOW (Sharp Inner Edge) - zIndex 4 */}
+      {/* Defines the inner boundary of the glass surface */}
       <div style={{
         ...layerInset,
         boxShadow: `
-          inset 0 0 ${bezel}px rgba(255,255,255,${ambient * 0.3}),
-          inset 0 0 ${Math.max(2, bezel / 8)}px rgba(255,255,255,${ambient * 0.8})
+          inset 0 0 ${bezel}px rgba(255,255,255,${ambient * 0.15}),
+          inset 0 0 ${Math.max(2, bezel / 8)}px rgba(255,255,255,${ambient * 0.5})
         `,
-        // Screen blend mode ensures it only lightens the underlying dark volume shadow, 
-        // creating a realistic subsurface scattering effect.
         mixBlendMode: 'screen',
-        zIndex: 2,
+        zIndex: 4,
       }} />
 
-      {/* CHILD 3: SPECULAR (Rim Light & Gloss) - zIndex 3 */}
+      {/* CHILD 5: SPECULAR (Rim Light & Gloss) - zIndex 5 */}
+      {/* The sharpest reflection on the outer surface */}
       <div style={{
         ...layerInset,
         boxShadow: `
@@ -490,18 +513,18 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
           inset 0 -1px 0 0 rgba(255,255,255, ${highlight * 0.3})
         `,
         background: `
-          radial-gradient(100% 100% at 30% 20%, rgba(255,255,255,${highlight * 0.6}) 0%, transparent 40%),
+          radial-gradient(100% 100% at 30% 20%, rgba(255,255,255,${highlight * 0.4}) 0%, transparent 40%),
           linear-gradient(180deg, rgba(255,255,255,${highlight * 0.1}) 0%, transparent 100%)
         `,
-        zIndex: 3,
+        zIndex: 5,
       }} />
       
-      {/* CHILD 4: FROST OVERLAY - zIndex 4 */}
+      {/* CHILD 6: FROST OVERLAY - zIndex 6 */}
       {frost > 0 && (
          <div style={{
             ...layerInset,
             backgroundColor: `rgba(255,255,255, ${Math.min(0.2, frost * 0.02)})`,
-            zIndex: 4,
+            zIndex: 6,
          }} />
       )}
 
@@ -666,7 +689,7 @@ export const MetaGlassApp = () => {
     chromaticDelta: 8, 
     frost: 0, 
     highlight: 0.6, 
-    ambient: 0.4, // Initial ambient
+    ambient: 0.5, // Boosted initial ambient for glow effect
     radius: 80, 
     dropShadow: 0.6,
     volumeShadow: 0.5,
