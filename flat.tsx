@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef, useId, useMemo } from 'react';
-import { motion, AnimatePresence, useDragControls, useAnimation } from 'framer-motion';
+import { 
+  motion, 
+  AnimatePresence, 
+  useDragControls, 
+  useAnimation, 
+  useMotionValue, 
+  useVelocity, 
+  useTransform, 
+  useSpring,
+  animate
+} from 'framer-motion';
 
 // -----------------------------------------------------------------------------
 // TIER 2: DESIGN SYSTEM (THEME)
@@ -147,6 +157,137 @@ function generateGlassMaps(
 // COMPONENTS: SECTIONS
 // -----------------------------------------------------------------------------
 
+const CodeIO: React.FC = () => {
+  const styles = {
+    wrapper: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: Theme.Space.M,
+    },
+    section: {
+      display: 'flex',
+      flexDirection: 'column' as const,
+      gap: Theme.Space.XS,
+    },
+    label: {
+      ...Theme.Type.Readable.Label.XS,
+      color: Theme.Color.Base.Content[3],
+      letterSpacing: '0.1em',
+    },
+    block: {
+      fontSize: '11px',
+      background: 'rgba(0,0,0,0.4)',
+      padding: Theme.Space.M,
+      borderRadius: Theme.Radius.S,
+      color: Theme.Color.Base.Content[2],
+      border: `1px solid ${Theme.Color.Base.Surface[3]}`,
+      whiteSpace: 'pre-wrap' as const,
+      fontFamily: '"JetBrains Mono", monospace',
+    },
+    keyword: { color: '#FF7B72' },
+    prop: { color: '#D2A8FF' },
+    value: { color: '#79C0FF' },
+    comment: { color: '#6E7681', fontStyle: 'italic' },
+  };
+
+  return (
+    <div style={styles.wrapper}>
+      <div style={styles.section}>
+        <span style={styles.label}>INPUT (Filter Props)</span>
+        <div style={styles.block}>
+          {`{
+  "feDisplacementMap": {
+    "in": "SourceGraphic",
+    "in2": "displacementMap",
+    "scale": `}<span style={styles.value}>30</span>{`,
+    "xChannelSelector": "R",
+    "yChannelSelector": "G"
+  }
+}`}
+        </div>
+      </div>
+
+      <div style={styles.section}>
+        <span style={styles.label}>COLOR MAPPING LOGIC</span>
+        <div style={styles.block}>
+          <span style={styles.comment}>// How pixels map to displacement:</span>{'\n'}
+          <span style={styles.comment}>// 0   (0x00) -{'>'} Negative Shift (-Scale/2)</span>{'\n'}
+          <span style={styles.comment}>// 127 (0x7F) -{'>'} Zero Displacement (Neutral)</span>{'\n'}
+          <span style={styles.comment}>// 255 (0xFF) -{'>'} Positive Shift (+Scale/2)</span>{'\n'}
+          {'\n'}
+          <span style={styles.keyword}>function</span> <span style={styles.prop}>mapColorToOffset</span>(color) {'{'}{'\n'}
+          {'  '}<span style={styles.keyword}>return</span> ((color / 255) - 0.5) * scale;{'\n'}
+          {'}'}
+        </div>
+      </div>
+
+      <div style={styles.section}>
+        <span style={styles.label}>SURFACE FUNCTION (Squircle)</span>
+        <div style={styles.block}>
+          <span style={styles.comment}>// Superellipse SDF approximation</span>{'\n'}
+          <span style={styles.keyword}>const</span> u = (x - cx) / rx;{'\n'}
+          <span style={styles.keyword}>const</span> v = (y - cy) / ry;{'\n'}
+          <span style={styles.comment}>// Implicit Surface Equation (n=4)</span>{'\n'}
+          <span style={styles.keyword}>const</span> val = <span style={styles.prop}>pow</span>(<span style={styles.prop}>abs</span>(u), 4) + <span style={styles.prop}>pow</span>(<span style={styles.prop}>abs</span>(v), 4);{'\n'}
+          <span style={styles.keyword}>const</span> height = val {'>'} 1 ? 0 : 1; 
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface LogEntry {
+  id: number;
+  timestamp: string;
+  message: string;
+  type: 'info' | 'action' | 'system';
+}
+
+const Console: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: '100%', justifyContent: 'flex-start' }}>
+      {logs.length === 0 && (
+        <div style={{ fontSize: '11px', fontFamily: 'monospace', color: Theme.Color.Base.Content[3], textAlign: 'center', marginTop: '20px' }}>
+          _
+        </div>
+      )}
+      {logs.map((log, index) => (
+        <div 
+          key={log.id} 
+          style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '60px 1fr',
+            gap: '12px', 
+            fontSize: '11px',
+            fontFamily: 'monospace',
+            opacity: Math.max(0.4, 1 - (logs.length - 1 - index) * 0.1),
+          }}
+        >
+          <span style={{ color: Theme.Color.Base.Content[3], textAlign: 'right' }}>
+            {log.timestamp.split(' ')[0]}
+          </span>
+          <span style={{ 
+            color: log.type === 'action' ? '#79C0FF' : 
+                   log.type === 'system' ? '#E2E8F0' : 
+                   Theme.Color.Base.Content[2],
+            wordBreak: 'break-word'
+          }}>
+            {log.type === 'system' && <span style={{ color: '#FFD60A', marginRight: '8px' }}>➜</span>}
+            {log.message}
+          </span>
+        </div>
+      ))}
+      <div ref={endRef} />
+    </div>
+  );
+};
+
 const StudioBackground: React.FC = () => {
   return (
     <div style={{
@@ -286,6 +427,7 @@ const LiquidGlassFilter: React.FC<LiquidGlassFilterProps> = React.memo(({
             xChannelSelector="R" 
             yChannelSelector="G" 
             result="dispR"
+            colorInterpolationFilters="sRGB"
           />
 
           {/* Green Channel: Base Scale */}
@@ -296,6 +438,7 @@ const LiquidGlassFilter: React.FC<LiquidGlassFilterProps> = React.memo(({
             xChannelSelector="R" 
             yChannelSelector="G" 
             result="dispG"
+            colorInterpolationFilters="sRGB"
           />
 
           {/* Blue Channel: Scale - Delta */}
@@ -306,33 +449,18 @@ const LiquidGlassFilter: React.FC<LiquidGlassFilterProps> = React.memo(({
             xChannelSelector="R" 
             yChannelSelector="G" 
             result="dispB"
+            colorInterpolationFilters="sRGB"
           />
 
           {/* 
              RECOMBINATION
              We need to take the Red component from dispR, Green from dispG, Blue from dispB.
+             Using feColorMatrix instead of feComponentTransfer for better performance.
           */}
           
-          <feComponentTransfer in="dispR" result="R">
-            <feFuncR type="identity"/>
-            <feFuncG type="discrete" tableValues="0"/>
-            <feFuncB type="discrete" tableValues="0"/>
-            <feFuncA type="identity"/> 
-          </feComponentTransfer>
-          
-          <feComponentTransfer in="dispG" result="G">
-            <feFuncR type="discrete" tableValues="0"/>
-            <feFuncG type="identity"/>
-            <feFuncB type="discrete" tableValues="0"/>
-            <feFuncA type="identity"/>
-          </feComponentTransfer>
-          
-          <feComponentTransfer in="dispB" result="B">
-            <feFuncR type="discrete" tableValues="0"/>
-            <feFuncG type="discrete" tableValues="0"/>
-            <feFuncB type="identity"/>
-            <feFuncA type="identity"/>
-          </feComponentTransfer>
+          <feColorMatrix in="dispR" result="R" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" />
+          <feColorMatrix in="dispG" result="G" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" />
+          <feColorMatrix in="dispB" result="B" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" />
 
           {/* Merge channels. Arithmetic add works well here since channels are isolated. */}
           <feComposite operator="arithmetic" k2="1" k3="1" in="R" in2="G" result="RG" />
@@ -427,7 +555,8 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
       0 30px 60px -30px rgba(0,0,0,${dropShadow * 0.3})
     `,
     zIndex: 10,
-    transition: 'all 0.2s ease-out'
+    willChange: 'transform, backdrop-filter',
+    transform: 'translateZ(0)', // Force GPU layer
   };
 
   const layerInset: React.CSSProperties = {
@@ -441,8 +570,8 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
     <motion.div 
       ref={containerRef} 
       style={containerStyle}
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.8 }}
     >
       {/* RENDER THE SVG FILTER */}
@@ -556,45 +685,84 @@ export const GlassBubble: React.FC<GlassBubbleProps> = ({
 // -----------------------------------------------------------------------------
 
 const LiquidWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const controls = useAnimation();
+  // Track position for velocity
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  
+  const velX = useVelocity(x);
+  const velY = useVelocity(y);
+  
+  // Tap pressure motion value (0 = no pressure, 1 = full pressure)
+  const pressure = useMotionValue(0);
+  // Internal flag to track if we've moved since the last pointer down
+  const handedOff = useRef(false);
 
-  // ALGORITHM: Fluid Physics Sequence (Divide & Conquer)
-  const triggerPhysics = async () => {
-    // Phase 1: Squash
-    await controls.start({
-      scaleX: 1.15, scaleY: 0.85,
-      transition: { duration: 0.15, ease: "easeOut" }
-    });
-    // Phase 2: Stretch
-    await controls.start({
-      scaleX: 0.95, scaleY: 1.05,
-      transition: { duration: 0.15, ease: "easeInOut" }
-    });
-    // Phase 3: Settle
-    await controls.start({
-      scaleX: 1, scaleY: 1,
-      transition: { type: "spring", stiffness: 400, damping: 12, mass: 1 }
-    });
-  };
+  // Total velocity magnitude
+  const velocity = useTransform([velX, velY], ([vx, vy]) => {
+    const v = Math.sqrt(Math.pow(vx as number, 2) + Math.pow(vy as number, 2));
+    
+    // DECELERATION LOGIC:
+    // If we were moving and now we are effectively stopped (v < 50), 
+    // we want the spring to return to 1.0. By clearing pressure here,
+    // we ensure the "stretch" (spring overshoot) triggers immediately.
+    if (v > 150) {
+      if (!handedOff.current) {
+        handedOff.current = true;
+        animate(pressure, 0, { duration: 0.1 });
+      }
+    }
+    return v;
+  });
+
+  // Calculate the target squash based on both velocity and pressure
+  // v / 3000 -> mapping velocity to squash (up to 0.25)
+  const targetScaleX = useTransform([velocity, pressure], ([v, p]) => {
+    const vFactor = Math.min(0.25, (v as number) / 3000);
+    // Pressure only contributes if we haven't handed off to velocity yet
+    const pFactor = handedOff.current ? 0 : (p as number) * 0.2;
+    return 1 + vFactor + pFactor;
+  });
+
+  const targetScaleY = useTransform([velocity, pressure], ([v, p]) => {
+    const vFactor = Math.min(0.25, (v as number) / 3000);
+    const pFactor = handedOff.current ? 0 : (p as number) * 0.2;
+    return 1 - vFactor - pFactor;
+  });
+
+  // OBSERVER-BASED PHYSICS:
+  // Using low damping (12) ensures that when velocity hits 0,
+  // the scale "overshoots" 1.0, creating a natural vertical stretch/wobble.
+  const springX = useSpring(targetScaleX, { stiffness: 450, damping: 12, mass: 1 });
+  const springY = useSpring(targetScaleY, { stiffness: 450, damping: 12, mass: 1 });
 
   return (
     <motion.div
       drag
       dragMomentum={true}
       dragElastic={0.1}
-      initial={{ x: '-50%', y: '-50%' }}
-      animate={controls}
-      onTap={triggerPhysics}
-      onDragEnd={triggerPhysics}
-      whileTap={{ cursor: 'grabbing', scale: 0.98 }}
-      whileHover={{ scale: 1.02 }}
+      onPointerDown={() => {
+        handedOff.current = false;
+        animate(pressure, 1, { duration: 0.15 });
+      }}
+      onPointerUp={() => {
+        animate(pressure, 0, { duration: 0.1 });
+      }}
+      onPointerCancel={() => {
+        animate(pressure, 0);
+      }}
       style={{
+        x, y,
+        scaleX: springX,
+        scaleY: springY,
         position: 'absolute', top: '50%', left: '50%',
         width: 'clamp(300px, 50vw, 600px)', 
         height: 'clamp(200px, 30vw, 360px)', 
         zIndex: 10, cursor: 'grab',
         touchAction: 'none',
-        transformOrigin: 'center center'
+        transformOrigin: 'center center',
+        willChange: 'transform',
+        translateX: '-50%',
+        translateY: '-50%',
       }}
     >
       {children}
@@ -698,73 +866,96 @@ export const MetaGlassApp = () => {
     chromaticDelta: 8, 
     frost: 0, 
     highlight: 0.6, 
-    ambient: 0.5, // Boosted initial ambient for glow effect
+    ambient: 0.5, 
     radius: 80, 
     dropShadow: 0.6,
     volumeShadow: 0.5,
     debug: 'off',
   });
-  const [windows, setWindows] = useState([{ id: 'controls', isOpen: true }]);
+
+  const [windows, setWindows] = useState([
+    { id: 'controls', isOpen: true, title: 'Glass Properties', width: '300px' },
+    { id: 'code', isOpen: false, title: 'Code I/O', width: '420px' },
+    { id: 'console', isOpen: false, title: 'Console', width: '300px' },
+  ]);
+
+  const [logs, setLogs] = useState<LogEntry[]>([
+    { id: 1, timestamp: new Date().toLocaleTimeString(), message: 'System initialized. Performance mode active.', type: 'system' }
+  ]);
+
+  const addLog = (message: string, type: LogEntry['type'] = 'info') => {
+    setLogs(prev => {
+      const newLogs = [...prev, { id: Date.now(), timestamp: new Date().toLocaleTimeString(), message, type }];
+      return newLogs.slice(-50);
+    });
+  };
+
+  const toggleWindow = (id: string) => {
+    setWindows(prev => prev.map(w => w.id === id ? { ...w, isOpen: !w.isOpen } : w));
+    const win = windows.find(w => w.id === id);
+    if (win && !win.isOpen) addLog(`Process spawned: ${win.title}`, 'system');
+  };
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
       <StudioBackground />
       
-      {/* 
-         WRAPPER: LiquidWrapper
-         Handles the "Jelly" physics sequence (Squash -> Stretch -> Rest)
-      */}
       <LiquidWrapper>
          <GlassBubble {...glass} debug={glass.debug === 'on'} />
       </LiquidWrapper>
 
       {windows.map(w => (
-        <DraggableWindow key={w.id} id={w.id} title="Glass Properties" isOpen={w.isOpen} onClose={() => setWindows([])}>
-           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              
-              <Section title="Material Physics">
-                <Slider label="Refraction" value={glass.intensity} min={0} max={100} onChange={v => setGlass(p => ({ ...p, intensity: v }))} />
-                <Slider label="Dispersion (RGB)" value={glass.chromaticDelta} min={0} max={30} onChange={v => setGlass(p => ({ ...p, chromaticDelta: v }))} />
-                <Slider label="Frost (Density)" value={glass.frost} min={0} max={20} onChange={v => setGlass(p => ({ ...p, frost: v }))} />
-              </Section>
-              
-              <Section title="Light & Surface">
-                <Slider label="Specular (Rim)" value={glass.highlight} min={0} max={1} onChange={v => setGlass(p => ({ ...p, highlight: v }))} />
-                <Slider label="Ambient Glow" value={glass.ambient} min={0} max={1} onChange={v => setGlass(p => ({ ...p, ambient: v }))} />
-                <Slider label="Bezel Depth" value={glass.bezel} min={0} max={100} onChange={v => setGlass(p => ({ ...p, bezel: v }))} />
-              </Section>
+        <DraggableWindow 
+          key={w.id} 
+          id={w.id} 
+          title={w.title} 
+          isOpen={w.isOpen} 
+          onClose={() => toggleWindow(w.id)}
+          width={w.width}
+        >
+           {w.id === 'controls' && (
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <Section title="Material Physics">
+                  <Slider label="Refraction" value={glass.intensity} min={0} max={100} onChange={v => setGlass(p => ({ ...p, intensity: v }))} />
+                  <Slider label="Dispersion (RGB)" value={glass.chromaticDelta} min={0} max={30} onChange={v => setGlass(p => ({ ...p, chromaticDelta: v }))} />
+                  <Slider label="Frost (Density)" value={glass.frost} min={0} max={20} onChange={v => setGlass(p => ({ ...p, frost: v }))} />
+                </Section>
+                
+                <Section title="Light & Surface">
+                  <Slider label="Specular (Rim)" value={glass.highlight} min={0} max={1} onChange={v => setGlass(p => ({ ...p, highlight: v }))} />
+                  <Slider label="Ambient Glow" value={glass.ambient} min={0} max={1} onChange={v => setGlass(p => ({ ...p, ambient: v }))} />
+                  <Slider label="Bezel Depth" value={glass.bezel} min={0} max={100} onChange={v => setGlass(p => ({ ...p, bezel: v }))} />
+                </Section>
 
-              <Section title="Shadows">
-                <Slider label="Drop Shadow" value={glass.dropShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, dropShadow: v }))} />
-                <Slider label="Volume (Inner)" value={glass.volumeShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, volumeShadow: v }))} />
-              </Section>
+                <Section title="Shadows">
+                  <Slider label="Drop Shadow" value={glass.dropShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, dropShadow: v }))} />
+                  <Slider label="Volume (Inner)" value={glass.volumeShadow} min={0} max={1} onChange={v => setGlass(p => ({ ...p, volumeShadow: v }))} />
+                </Section>
 
-              <Section title="Geometry">
-                <Slider label="Corner Radius" value={glass.radius} min={0} max={120} onChange={v => setGlass(p => ({ ...p, radius: v }))} />
-              </Section>
-
-           </div>
+                <Section title="Geometry">
+                  <Slider label="Corner Radius" value={glass.radius} min={0} max={120} onChange={v => setGlass(p => ({ ...p, radius: v }))} />
+                </Section>
+             </div>
+           )}
+           {w.id === 'code' && <CodeIO />}
+           {w.id === 'console' && <Console logs={logs} />}
         </DraggableWindow>
       ))}
       
-      <div style={{ position: 'absolute', bottom: 40, width: '100%', textAlign: 'center', pointerEvents: 'none' }}>
-        <AnimatePresence>
-          {windows.length === 0 && (
-            <motion.button 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              onClick={() => setWindows([{ id: 'controls', isOpen: true }])} 
-              style={{ 
-                pointerEvents: 'auto', background: '#fff', border: 'none', padding: '12px 24px', 
-                borderRadius: '24px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontWeight: 600, cursor: 'pointer',
-                color: '#333', fontSize: '13px'
-              }}
-            >
-              Open Controls
-            </motion.button>
-          )}
-        </AnimatePresence>
+      <div style={{ position: 'absolute', bottom: 40, width: '100%', display: 'flex', justifyContent: 'center', gap: '12px', pointerEvents: 'none' }}>
+        {windows.map(w => (
+          <motion.button 
+            key={w.id}
+            onClick={() => toggleWindow(w.id)} 
+            style={{ 
+              pointerEvents: 'auto', background: w.isOpen ? '#000' : '#fff', border: 'none', padding: '10px 20px', 
+              borderRadius: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontWeight: 600, cursor: 'pointer',
+              color: w.isOpen ? '#fff' : '#333', fontSize: '12px', transition: 'color 0.2s, background-color 0.2s'
+            }}
+          >
+            {w.title}
+          </motion.button>
+        ))}
       </div>
     </div>
   );
